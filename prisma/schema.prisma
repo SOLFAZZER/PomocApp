@@ -1,0 +1,149 @@
+// prisma/schema.prisma
+// Ejecutar: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  usuario
+  monitor
+  administrador
+}
+
+enum EstadoReporte {
+  pendiente
+  resuelto
+  descartado
+}
+
+enum TipoTarget {
+  publicacion
+  monitoria
+}
+
+model Usuario {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  apellido    String
+  email       String   @unique
+  password    String   // almacenada con bcrypt hash
+  rol         Rol      @default(usuario)
+  descripcion String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  publicaciones Publicacion[]
+  monitorias    Monitoria[]
+  reportes      Reporte[]     @relation("ReportadoPor")
+  favPubs       FavPublicacion[]
+  favMons       FavMonitoria[]
+
+  @@map("usuarios")
+}
+
+model Materia {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  publicaciones Publicacion[]
+  monitorias    Monitoria[]
+  temas         Tema[]
+
+  @@map("materias")
+}
+
+model Tema {
+  id       Int     @id @default(autoincrement())
+  nombre   String
+  materiaId Int?
+  materia  Materia? @relation(fields: [materiaId], references: [id])
+
+  publicaciones Publicacion[]
+  monitorias    Monitoria[]
+
+  @@map("temas")
+}
+
+model Publicacion {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  desc      String?
+  archivo   String?  @db.Text // URL o base64
+  materiaId Int
+  temaId    Int
+  autorId   Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  materia  Materia  @relation(fields: [materiaId], references: [id])
+  tema     Tema     @relation(fields: [temaId], references: [id])
+  autor    Usuario  @relation(fields: [autorId], references: [id], onDelete: Cascade)
+  favoritos FavPublicacion[]
+
+  @@map("publicaciones")
+}
+
+model Monitoria {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  horario   String
+  precio    String
+  link      String
+  materiaId Int
+  temaId    Int
+  autorId   Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  materia  Materia  @relation(fields: [materiaId], references: [id])
+  tema     Tema     @relation(fields: [temaId], references: [id])
+  autor    Usuario  @relation(fields: [autorId], references: [id], onDelete: Cascade)
+  favoritos FavMonitoria[]
+
+  @@map("monitorias")
+}
+
+model FavPublicacion {
+  usuarioId     Int
+  publicacionId Int
+  createdAt     DateTime @default(now())
+
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  publicacion Publicacion @relation(fields: [publicacionId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, publicacionId])
+  @@map("fav_publicaciones")
+}
+
+model FavMonitoria {
+  usuarioId  Int
+  monitoriaId Int
+  createdAt  DateTime @default(now())
+
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  monitoria Monitoria @relation(fields: [monitoriaId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, monitoriaId])
+  @@map("fav_monitorias")
+}
+
+model Reporte {
+  id          Int           @id @default(autoincrement())
+  motivo      String
+  desc        String?
+  estado      EstadoReporte @default(pendiente)
+  targetType  TipoTarget
+  targetId    Int
+  reportadoPorId Int
+  createdAt   DateTime      @default(now())
+
+  reportadoPor    Usuario    @relation("ReportadoPor", fields: [reportadoPorId], references: [id])
+
+  @@map("reportes")
+}
